@@ -10,8 +10,10 @@ class Synthesizer {
         this.outputAnalyzer.fftSize = 1024;
         this.outputAnalyzer.smoothingTimeConstant = 0.2;
 
-        // Create master gain node for logarithmic processing
+        // Create master gain nodes
         this.masterGain = this.audioContext.createGain();
+        this.masterLevel = this.audioContext.createGain();
+        this.masterLevel.gain.value = 1.0;
         // Create delay effect
         this.delay = {
             delayNode: this.audioContext.createDelay(1.0),
@@ -34,18 +36,19 @@ class Synthesizer {
         this.dryGain.gain.value = 1;
 
         // Connect effects chain
-        this.masterGain.connect(this.dryGain);
+        this.masterGain.connect(this.masterLevel);
+        this.masterLevel.connect(this.dryGain);
         this.dryGain.connect(this.outputAnalyzer);
         
         // Delay chain
-        this.masterGain.connect(this.delay.delayNode);
+        this.masterLevel.connect(this.delay.delayNode);
         this.delay.delayNode.connect(this.delay.feedback);
         this.delay.feedback.connect(this.delay.delayNode);
         this.delay.delayNode.connect(this.delay.mix);
         this.delay.mix.connect(this.outputAnalyzer);
 
         // Reverb chain
-        this.masterGain.connect(this.reverb.convolver);
+        this.masterLevel.connect(this.reverb.convolver);
         this.reverb.convolver.connect(this.reverb.mix);
         this.reverb.mix.connect(this.outputAnalyzer);
         
@@ -174,6 +177,13 @@ class Synthesizer {
         // Initialize master gain based on default oscillator levels
         this.updateMasterGain();
         
+        // Add master level control
+        document.getElementById('master-level').addEventListener('input', (e) => {
+            const value = parseInt(e.target.value) / 100;
+            this.masterLevel.gain.value = value;
+            e.target.parentElement.querySelector('.value').textContent = e.target.value;
+        });
+
         this.setupEventListeners();
 
         // Method to update LFO target

@@ -29,14 +29,14 @@ BlueSynth is a web-based polyphonic synthesizer implemented using the Web Audio 
 The audio signal flows through the following stages:
 
 ```
-Oscillators (1-4) → Individual Gain Nodes → Filter → Effects → Master Output
-     ↑                     ↑                  ↑         ↑
-     |                     |                  |         |
-  Detune               Amplitude          Filter     Delay &
-  Control              Envelope          Envelope    Reverb
-     ↑                     ↑                  ↑         ↑
-     |                     |                  |         |
-     └─────────────────── LFO ───────────────┘─────────
+Oscillators (1-4) → Individual Gain Nodes → Filter → Master Gain → Master Level → Effects → Output
+     ↑                     ↑                  ↑                                      ↑
+     |                     |                  |                                      |
+  Detune               Amplitude          Filter                                 Delay &
+  Control              Envelope          Envelope                                Reverb
+     ↑                     ↑                  ↑                                      ↑
+     |                     |                  |                                      |
+     └─────────────────── LFO ───────────────┘──────────────────────────────────────
 ```
 
 #### 3. Key Features
@@ -45,7 +45,7 @@ Oscillators (1-4) → Individual Gain Nodes → Filter → Effects → Master Ou
 - Waveform selection (sine, square, sawtooth, triangle)
 - Octave control (-2 to +2)
 - Detune control (-100 to +100 cents)
-- Individual level control with logarithmic mixing
+- Individual level control per oscillator
 
 ##### Filter Section
 - Multiple filter types:
@@ -95,7 +95,9 @@ Oscillators (1-4) → Individual Gain Nodes → Filter → Effects → Master Ou
 - Proper cleanup of voices with envelope release
 
 #### 2. Audio Processing
-- Logarithmic output processing to prevent clipping
+- Two-stage gain control:
+  - Master gain with logarithmic processing for voice management
+  - Master level control for overall volume
 - Dynamic gain compensation based on active voices
 - Careful management of audio parameter automation
 
