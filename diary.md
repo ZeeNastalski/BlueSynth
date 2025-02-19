@@ -29,14 +29,14 @@ BlueSynth is a web-based polyphonic synthesizer implemented using the Web Audio 
 The audio signal flows through the following stages:
 
 ```
-Oscillators (1-4) → Individual Gain Nodes → Filter → Master Gain → Master Level → Effects → Output
-     ↑                     ↑                  ↑                                      ↑
-     |                     |                  |                                      |
-  Detune               Amplitude          Filter                                 Delay &
-  Control              Envelope          Envelope                                Reverb
-     ↑                     ↑                  ↑                                      ↑
-     |                     |                  |                                      |
-     └─────────────────── LFO ───────────────┘──────────────────────────────────────
+Oscillators (1-4) → Individual Gain Nodes → Filter → Master Gain → Master Level → Final Summing → Output
+     ↑                     ↑                  ↑                         ↑              ↑
+     |                     |                  |                         |              |
+  Detune               Amplitude          Filter                     Delay &       Level
+  Control              Envelope          Envelope                    Reverb      Monitoring
+     ↑                     ↑                  ↑                         ↑
+     |                     |                  |                         |
+     └─────────────────── LFO ───────────────┘─────────────────────────
 ```
 
 #### 3. Key Features
@@ -96,9 +96,18 @@ Oscillators (1-4) → Individual Gain Nodes → Filter → Master Gain → Maste
 
 #### 2. Audio Processing
 - Two-stage gain control:
-  - Master gain with logarithmic processing for voice management
+  - Master gain with configurable normalization for voice management
   - Master level control for overall volume
-- Dynamic gain compensation based on active voices
+- Advanced gain compensation:
+  - Configurable voice scaling (0.5-1.0 exponent)
+  - Switchable logarithmic/linear normalization
+  - -12dB safety headroom in master gain
+  - -3dB safety margin in master level
+  - Dynamic adjustment based on active voices and oscillator levels
+- Multi-stage level monitoring:
+  - Pre-master level meter (mixer output)
+  - Final output level meter (post-effects)
+  - Dedicated summing node for accurate total level measurement
 - Careful management of audio parameter automation
 
 #### 3. Performance Considerations

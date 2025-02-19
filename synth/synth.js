@@ -5,10 +5,18 @@ class Synthesizer {
         this.midiAccess = null;
         this.initMIDI();
         
-        // Create analyzer for output level monitoring
+        // Create analyzers for level monitoring
         this.outputAnalyzer = this.audioContext.createAnalyser();
         this.outputAnalyzer.fftSize = 1024;
         this.outputAnalyzer.smoothingTimeConstant = 0.2;
+
+        this.mixerAnalyzer = this.audioContext.createAnalyser();
+        this.mixerAnalyzer.fftSize = 1024;
+        this.mixerAnalyzer.smoothingTimeConstant = 0.2;
+
+        // Create final summing node
+        this.finalSumming = this.audioContext.createGain();
+        this.finalSumming.gain.value = 1.0;
 
         // Create master gain nodes
         this.masterGain = this.audioContext.createGain();
@@ -36,23 +44,26 @@ class Synthesizer {
         this.dryGain.gain.value = 1;
 
         // Connect effects chain
+        this.masterGain.connect(this.mixerAnalyzer);
         this.masterGain.connect(this.masterLevel);
         this.masterLevel.connect(this.dryGain);
-        this.dryGain.connect(this.outputAnalyzer);
+        this.dryGain.connect(this.finalSumming);
         
         // Delay chain
         this.masterLevel.connect(this.delay.delayNode);
         this.delay.delayNode.connect(this.delay.feedback);
         this.delay.feedback.connect(this.delay.delayNode);
         this.delay.delayNode.connect(this.delay.mix);
-        this.delay.mix.connect(this.outputAnalyzer);
+        this.delay.mix.connect(this.finalSumming);
 
         // Reverb chain
         this.masterLevel.connect(this.reverb.convolver);
         this.reverb.convolver.connect(this.reverb.mix);
-        this.reverb.mix.connect(this.outputAnalyzer);
+        this.reverb.mix.connect(this.finalSumming);
         
-        this.outputAnalyzer.connect(this.audioContext.destination);
+        // Connect final summing to analyzer and output
+        this.finalSumming.connect(this.outputAnalyzer);
+        this.finalSumming.connect(this.audioContext.destination);
         this.masterGain.gain.value = 1;
 
         // Generate reverb impulse response
@@ -91,8 +102,9 @@ class Synthesizer {
         this.filters.lowpass6.connect(this.masterGain);
         this.filters.lowpass12.connect(this.masterGain);
 
-        // Logarithmic output processing
-        this.useLogOutput = true;
+        // Normalization settings
+        this.normalizationType = 'logarithmic';
+        this.voiceScaling = 0.75;
 
         // Calculate total gain and apply dynamic compression
         this.updateMasterGain = () => {
@@ -100,19 +112,58 @@ class Synthesizer {
             const totalLinearGain = this.osc1Level + this.osc2Level + this.osc3Level + this.osc4Level;
             const activeNoteCount = Math.max(1, this.activeNotes.size);
             
-            if (this.useLogOutput) {
-                // Apply more aggressive gain reduction for multiple notes
-                // Scale down based on number of active notes and total oscillator gain
-                const scaleFactor = Math.max(1, Math.sqrt(activeNoteCount));
+            if (this.normalizationType === 'logarithmic') {
+                // Apply logarithmic gain reduction with adjustable voice scaling
+                const scaleFactor = Math.max(1, Math.pow(activeNoteCount, this.voiceScaling / 100));
                 const logGain = Math.log10(1 + totalLinearGain * scaleFactor) / Math.log10(2);
                 
-                // Additional safety headroom (-6dB)
-                this.masterGain.gain.value = 0.5 / Math.max(1, logGain);
+                // Additional safety headroom (-12dB)
+                this.masterGain.gain.value = 0.25 / Math.max(1, logGain);
             } else {
-                // Linear gain reduction based on active notes
-                this.masterGain.gain.value = 1 / Math.max(1, Math.sqrt(activeNoteCount));
+                // Linear gain reduction with adjustable voice scaling
+                this.masterGain.gain.value = 0.5 / Math.max(1, Math.pow(activeNoteCount, this.voiceScaling / 100));
             }
+            
+            // Scale master level to prevent clipping
+            const masterLevelScaling = 0.7; // -3dB safety margin
+            this.masterLevel.gain.value = (parseInt(document.getElementById('master-level').value) / 100) * masterLevelScaling;
         };
+
+        // Start mixer level monitoring
+        const updateMixerMeter = () => {
+            const meter = document.getElementById('mixer-level-meter');
+            if (!meter) return;
+
+            const dataArray = new Float32Array(this.mixerAnalyzer.frequencyBinCount);
+            this.mixerAnalyzer.getFloatTimeDomainData(dataArray);
+            
+            // Calculate RMS value
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i] * dataArray[i];
+            }
+            const rms = Math.sqrt(sum / dataArray.length);
+            
+            // Convert to dB
+            const db = 20 * Math.log10(rms);
+            
+            // Map dB to height percentage (-60dB to 0dB)
+            const height = Math.max(0, Math.min(100, (db + 60) * 1.67));
+            
+            // Update meter height and color
+            meter.style.height = `${height}%`;
+            
+            // Add clipping class if level is too high (above -3dB)
+            if (db > -3) {
+                meter.classList.add('clipping');
+            } else {
+                meter.classList.remove('clipping');
+            }
+
+            requestAnimationFrame(updateMixerMeter);
+        };
+        
+        updateMixerMeter();
 
         // Current active filter
         this.currentFilter = this.filters.lowpass24[0];
@@ -782,9 +833,15 @@ class Synthesizer {
             this.shiftOctave(1);
         });
 
-        // Logarithmic output control
-        document.getElementById('log-output').addEventListener('change', (e) => {
-            this.useLogOutput = e.target.checked;
+        // Normalization controls
+        document.getElementById('normalization-type').addEventListener('change', (e) => {
+            this.normalizationType = e.target.value;
+            this.updateMasterGain();
+        });
+
+        document.getElementById('voice-scaling').addEventListener('input', (e) => {
+            this.voiceScaling = parseInt(e.target.value);
+            e.target.parentElement.querySelector('.value').textContent = (this.voiceScaling / 100).toFixed(2);
             this.updateMasterGain();
         });
 
