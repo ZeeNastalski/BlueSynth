@@ -1012,30 +1012,6 @@ class Synthesizer {
             updateValue(e.target);
         });
 
-        document.getElementById('lfo-phase').addEventListener('input', (e) => {
-            const phase = parseInt(e.target.value);
-            const now = this.audioContext.currentTime;
-            
-            // Stop and disconnect old oscillator
-            this.lfo.oscillator.stop(now);
-            this.lfo.oscillator.disconnect();
-            
-            // Create new oscillator with phase offset
-            this.lfo.oscillator = this.audioContext.createOscillator();
-            this.lfo.oscillator.type = document.getElementById('lfo-wave').value;
-            this.lfo.oscillator.frequency.value = parseFloat(document.getElementById('lfo-rate').value);
-            
-            // Convert phase to radians and offset the start time
-            const phaseInRadians = (phase * Math.PI) / 180;
-            const periodTime = 1 / this.lfo.oscillator.frequency.value;
-            const phaseTime = (phaseInRadians / (2 * Math.PI)) * periodTime;
-            
-            // Reconnect and start with phase offset
-            this.lfo.oscillator.connect(this.lfo.depthGain);
-            this.lfo.oscillator.start(now, phaseTime);
-            
-            updateValue(e.target);
-        });
 
         // Effects controls
         document.getElementById('delay-time').addEventListener('input', (e) => {
