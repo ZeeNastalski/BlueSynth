@@ -22,7 +22,6 @@ class Synthesizer {
         this.masterGain = this.audioContext.createGain();
         this.masterLevel = this.audioContext.createGain();
         this.masterLevel.gain.value = 1.0;
-        
         // Create delay effect
         this.delay = {
             delayNode: this.audioContext.createDelay(1.0),
@@ -181,9 +180,7 @@ class Synthesizer {
             attack: 100,
             decay: 200,
             sustain: 0.7,
-            release: 500,
-            retrigger: true,
-            isActive: false // Track if envelope is currently active
+            release: 500
         };
 
         // Filter envelope parameters
@@ -193,9 +190,7 @@ class Synthesizer {
             sustain: 0.7,
             release: 500,
             amount: 0.5, // 0-1 range for modulation amount
-            baseFreq: 20000, // Store base frequency separate from modulated value
-            retrigger: true,
-            isActive: false // Track if envelope is currently active
+            baseFreq: 20000 // Store base frequency separate from modulated value
         };
 
         // LFO parameters
@@ -238,15 +233,6 @@ class Synthesizer {
             const value = parseInt(e.target.value) / 100;
             this.masterLevel.gain.value = value;
             e.target.parentElement.querySelector('.value').textContent = e.target.value;
-        });
-
-        // Add envelope retrigger controls
-        document.getElementById('env-retrigger').addEventListener('change', (e) => {
-            this.envelope.retrigger = e.target.checked;
-        });
-
-        document.getElementById('filter-env-retrigger').addEventListener('change', (e) => {
-            this.filterEnvelope.retrigger = e.target.checked;
         });
 
         this.setupEventListeners();
@@ -393,23 +379,15 @@ class Synthesizer {
         gain.cancelScheduledValues(now);
 
         if (isNoteOn) {
-            // Only retrigger if retrigger is enabled or envelope is not active
-            if (this.envelope.retrigger || !this.envelope.isActive) {
-                // Attack
-                gain.setValueAtTime(0, now);
-                gain.linearRampToValueAtTime(baseLevel, now + this.envelope.attack / 1000);
+            // Attack
+            gain.setValueAtTime(0, now);
+            gain.linearRampToValueAtTime(baseLevel, now + this.envelope.attack / 1000);
 
-                // Decay and Sustain
-                gain.linearRampToValueAtTime(
-                    baseLevel * this.envelope.sustain,
-                    now + (this.envelope.attack + this.envelope.decay) / 1000
-                );
-                this.envelope.isActive = true;
-            } else {
-                // If not retriggering, maintain current value
-                const currentValue = gain.value;
-                gain.setValueAtTime(currentValue, now);
-            }
+            // Decay and Sustain
+            gain.linearRampToValueAtTime(
+                baseLevel * this.envelope.sustain,
+                now + (this.envelope.attack + this.envelope.decay) / 1000
+            );
         } else {
             // Release - using exponential decay for more natural sound
             const currentValue = gain.value;
@@ -418,63 +396,7 @@ class Synthesizer {
             gain.exponentialRampToValueAtTime(0.00001, now + this.envelope.release / 1000);
             // Then we set it to 0 immediately after
             gain.setValueAtTime(0, now + this.envelope.release / 1000);
-
-            // If this was the last note, mark envelope as inactive
-            if (this.activeNotes.size === 1) {
-                this.envelope.isActive = false;
-            }
         }
-    }
-
-    applyFilterEnvelope(isNoteOn) {
-        const now = this.audioContext.currentTime;
-        const baseFreq = this.filterEnvelope.baseFreq;
-        const amount = this.filterEnvelope.amount;
-        
-        // Calculate maximum frequency shift (up to 4 octaves above base frequency)
-        const maxFreqShift = baseFreq * 16; // 4 octaves = 16x frequency
-        const freqRange = maxFreqShift - baseFreq;
-        
-        [this.filters.lowpass6, this.filters.lowpass12, ...this.filters.lowpass24].forEach(filter => {
-            filter.frequency.cancelScheduledValues(now);
-            
-            if (isNoteOn) {
-                // Only retrigger if retrigger is enabled or envelope is not active
-                if (this.filterEnvelope.retrigger || !this.filterEnvelope.isActive) {
-                    // Start from current frequency
-                    filter.frequency.setValueAtTime(baseFreq, now);
-                    
-                    // Attack - sweep up to max frequency
-                    const peakFreq = baseFreq + (freqRange * amount);
-                    filter.frequency.exponentialRampToValueAtTime(peakFreq, now + this.filterEnvelope.attack / 1000);
-                    
-                    // Decay and Sustain
-                    const sustainFreq = baseFreq + (freqRange * amount * this.filterEnvelope.sustain);
-                    filter.frequency.exponentialRampToValueAtTime(
-                        sustainFreq,
-                        now + (this.filterEnvelope.attack + this.filterEnvelope.decay) / 1000
-                    );
-                    this.filterEnvelope.isActive = true;
-                } else {
-                    // If not retriggering, maintain current value
-                    const currentFreq = filter.frequency.value;
-                    filter.frequency.setValueAtTime(currentFreq, now);
-                }
-            } else {
-                // Release - return to base frequency
-                const currentFreq = filter.frequency.value;
-                filter.frequency.setValueAtTime(currentFreq, now);
-                filter.frequency.exponentialRampToValueAtTime(
-                    baseFreq,
-                    now + this.filterEnvelope.release / 1000
-                );
-
-                // If this was the last note, mark envelope as inactive
-                if (this.activeNotes.size === 1) {
-                    this.filterEnvelope.isActive = false;
-                }
-            }
-        });
     }
 
     noteToFrequency(note) {
@@ -782,13 +704,14 @@ class Synthesizer {
         document.querySelectorAll('input[type="range"]').forEach(input => {
             input.addEventListener('input', (e) => {
                 updateValue(e.target);
+                
+                // Filter parameters are handled by dedicated event listeners
             });
 
             // Initialize value displays
             updateValue(input);
         });
 
-        // Filter type control
         document.getElementById('filter-type').addEventListener('change', (e) => {
             const newType = e.target.value;
             
@@ -932,6 +855,218 @@ class Synthesizer {
                 this.lfo.targetParams.add(param);
             }
         };
+
+        // Method to apply filter envelope
+        this.applyFilterEnvelope = (isNoteOn) => {
+            const now = this.audioContext.currentTime;
+            const baseFreq = this.filterEnvelope.baseFreq;
+            const amount = this.filterEnvelope.amount;
+            
+            // Calculate maximum frequency shift (up to 4 octaves above base frequency)
+            const maxFreqShift = baseFreq * 16; // 4 octaves = 16x frequency
+            const freqRange = maxFreqShift - baseFreq;
+            
+            [this.filters.lowpass6, this.filters.lowpass12, ...this.filters.lowpass24].forEach(filter => {
+                filter.frequency.cancelScheduledValues(now);
+                
+                if (isNoteOn) {
+                    // Start from current frequency
+                    filter.frequency.setValueAtTime(baseFreq, now);
+                    
+                    // Attack - sweep up to max frequency
+                    const peakFreq = baseFreq + (freqRange * amount);
+                    filter.frequency.exponentialRampToValueAtTime(peakFreq, now + this.filterEnvelope.attack / 1000);
+                    
+                    // Decay and Sustain
+                    const sustainFreq = baseFreq + (freqRange * amount * this.filterEnvelope.sustain);
+                    filter.frequency.exponentialRampToValueAtTime(
+                        sustainFreq,
+                        now + (this.filterEnvelope.attack + this.filterEnvelope.decay) / 1000
+                    );
+                } else {
+                    // Release - return to base frequency
+                    const currentFreq = filter.frequency.value;
+                    filter.frequency.setValueAtTime(currentFreq, now);
+                    filter.frequency.exponentialRampToValueAtTime(
+                        baseFreq,
+                        now + this.filterEnvelope.release / 1000
+                    );
+                }
+            });
+        };
+
+        // Mixer level controls
+        document.getElementById('osc1-level').addEventListener('input', (e) => {
+            this.osc1Level = parseInt(e.target.value) / 100;
+            this.updateMasterGain();
+            // Update active notes
+            this.activeNotes.forEach(oscillators => {
+                oscillators[0].gainNode.gain.value = this.osc1Level;
+            });
+        });
+
+        document.getElementById('osc2-level').addEventListener('input', (e) => {
+            this.osc2Level = parseInt(e.target.value) / 100;
+            this.updateMasterGain();
+            // Update active notes
+            this.activeNotes.forEach(oscillators => {
+                oscillators[1].gainNode.gain.value = this.osc2Level;
+            });
+        });
+
+        document.getElementById('osc3-level').addEventListener('input', (e) => {
+            this.osc3Level = parseInt(e.target.value) / 100;
+            this.updateMasterGain();
+            // Update active notes
+            this.activeNotes.forEach(oscillators => {
+                oscillators[2].gainNode.gain.value = this.osc3Level;
+            });
+        });
+
+        document.getElementById('osc4-level').addEventListener('input', (e) => {
+            this.osc4Level = parseInt(e.target.value) / 100;
+            this.updateMasterGain();
+            // Update active notes
+            this.activeNotes.forEach(oscillators => {
+                oscillators[3].gainNode.gain.value = this.osc4Level;
+            });
+        });
+
+        // Envelope controls
+        document.getElementById('env-attack').addEventListener('input', (e) => {
+            this.envelope.attack = parseInt(e.target.value);
+            updateValue(e.target);
+        });
+
+        document.getElementById('env-decay').addEventListener('input', (e) => {
+            this.envelope.decay = parseInt(e.target.value);
+            updateValue(e.target);
+        });
+
+        document.getElementById('env-sustain').addEventListener('input', (e) => {
+            this.envelope.sustain = parseInt(e.target.value) / 100;
+            updateValue(e.target);
+            // Update currently held notes
+            this.activeNotes.forEach(oscillators => {
+                oscillators.forEach(osc => {
+                    if (osc.gainNode.gain.value > 0) {
+                        osc.gainNode.gain.value = osc.baseLevel * this.envelope.sustain;
+                    }
+                });
+            });
+        });
+
+        document.getElementById('env-release').addEventListener('input', (e) => {
+            this.envelope.release = parseInt(e.target.value);
+            updateValue(e.target);
+        });
+
+        // LFO controls
+        document.getElementById('lfo-target').addEventListener('change', (e) => {
+            this.updateLfoTarget(e.target.value);
+        });
+
+        document.getElementById('lfo-wave').addEventListener('change', (e) => {
+            this.lfo.oscillator.type = e.target.value;
+        });
+
+        document.getElementById('lfo-rate').addEventListener('input', (e) => {
+            this.lfo.oscillator.frequency.value = parseFloat(e.target.value);
+            updateValue(e.target);
+        });
+
+        document.getElementById('lfo-amount').addEventListener('input', (e) => {
+            const amount = parseInt(e.target.value) / 100;
+            if (this.lfo.target !== 'none') {
+                // Temporarily disconnect LFO
+                this.lfo.gain.disconnect();
+                
+                // Update modulation depth based on target type
+                switch (this.lfo.target) {
+                    case 'filter-freq':
+                        const baseFreq = this.filterEnvelope.baseFreq;
+                        this.lfo.depthGain.gain.value = baseFreq * amount;
+                        break;
+                    case 'filter-q':
+                        this.lfo.depthGain.gain.value = 5 * amount; // ±5 Q value
+                        break;
+                    case 'osc1-level':
+                    case 'osc2-level':
+                    case 'osc3-level':
+                    case 'osc4-level':
+                        this.lfo.depthGain.gain.value = 0.5 * amount; // ±0.5 amplitude
+                        break;
+                    case 'osc1-detune':
+                    case 'osc2-detune':
+                    case 'osc3-detune':
+                    case 'osc4-detune':
+                        this.lfo.depthGain.gain.value = 50 * amount; // ±50 cents
+                        break;
+                }
+                
+                // Reconnect to all target parameters
+                this.lfo.targetParams.forEach(param => {
+                    this.lfo.gain.connect(param);
+                });
+            }
+            updateValue(e.target);
+        });
+
+        document.getElementById('lfo-phase').addEventListener('input', (e) => {
+            const phase = parseInt(e.target.value);
+            const now = this.audioContext.currentTime;
+            
+            // Stop and disconnect old oscillator
+            this.lfo.oscillator.stop(now);
+            this.lfo.oscillator.disconnect();
+            
+            // Create new oscillator with phase offset
+            this.lfo.oscillator = this.audioContext.createOscillator();
+            this.lfo.oscillator.type = document.getElementById('lfo-wave').value;
+            this.lfo.oscillator.frequency.value = parseFloat(document.getElementById('lfo-rate').value);
+            
+            // Convert phase to radians and offset the start time
+            const phaseInRadians = (phase * Math.PI) / 180;
+            const periodTime = 1 / this.lfo.oscillator.frequency.value;
+            const phaseTime = (phaseInRadians / (2 * Math.PI)) * periodTime;
+            
+            // Reconnect and start with phase offset
+            this.lfo.oscillator.connect(this.lfo.depthGain);
+            this.lfo.oscillator.start(now, phaseTime);
+            
+            updateValue(e.target);
+        });
+
+        // Effects controls
+        document.getElementById('delay-time').addEventListener('input', (e) => {
+            this.delay.delayNode.delayTime.value = parseInt(e.target.value) / 1000;
+            updateValue(e.target);
+        });
+
+        document.getElementById('delay-feedback').addEventListener('input', (e) => {
+            this.delay.feedback.gain.value = parseInt(e.target.value) / 100;
+            updateValue(e.target);
+        });
+
+        document.getElementById('delay-mix').addEventListener('input', (e) => {
+            this.delay.mix.gain.value = parseInt(e.target.value) / 100;
+            updateValue(e.target);
+        });
+
+        document.getElementById('reverb-size').addEventListener('input', (e) => {
+            updateValue(e.target);
+            this.generateReverbIR();
+        });
+
+        document.getElementById('reverb-damping').addEventListener('input', (e) => {
+            updateValue(e.target);
+            this.generateReverbIR();
+        });
+
+        document.getElementById('reverb-mix').addEventListener('input', (e) => {
+            this.reverb.mix.gain.value = parseInt(e.target.value) / 100;
+            updateValue(e.target);
+        });
     }
 
     generateReverbIR() {
