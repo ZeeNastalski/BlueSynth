@@ -696,9 +696,45 @@ class Synthesizer {
         // Control changes
         const updateValue = (element) => {
             const valueDisplay = element.parentElement.querySelector('.value');
-            if (valueDisplay) {
-                valueDisplay.textContent = element.value;
+            if (!valueDisplay) return;
+
+            let unit = '';
+            switch (element.id) {
+                case 'env-attack':
+                case 'env-decay':
+                case 'env-release':
+                case 'filter-env-attack':
+                case 'filter-env-decay':
+                case 'filter-env-release':
+                case 'delay-time':
+                    unit = 'ms';
+                    break;
+                case 'env-sustain':
+                case 'osc1-level':
+                case 'osc2-level':
+                case 'osc3-level':
+                case 'osc4-level':
+                case 'delay-feedback':
+                case 'delay-mix':
+                case 'reverb-size':
+                case 'reverb-damping':
+                case 'reverb-mix':
+                    unit = '%';
+                    break;
+                case 'osc1-detune':
+                case 'osc2-detune':
+                case 'osc3-detune':
+                case 'osc4-detune':
+                    unit = ' cents';
+                    break;
+                case 'lfo-rate':
+                    unit = 'Hz';
+                    break;
+                default:
+                    unit = '';
             }
+
+            valueDisplay.textContent = `${element.value} ${unit}`;
         };
 
         document.querySelectorAll('input[type="range"]').forEach(input => {
