@@ -1,5 +1,5 @@
 class UIController {
-    constructor(audioEngine, filterBank, lfo, envelopes, effects, mixer, voiceManager) {
+    constructor(audioEngine, filterBank, lfo, envelopes, effects, mixer, voiceManager, arpeggiator) {
         this.audioEngine = audioEngine;
         this.filterBank = filterBank;
         this.lfo = lfo;
@@ -7,6 +7,7 @@ class UIController {
         this.effects = effects;
         this.mixer = mixer;
         this.voiceManager = voiceManager;
+        this.arpeggiator = arpeggiator;
     }
 
     init() {
@@ -20,6 +21,7 @@ class UIController {
         this._setupAmplitudeEnvelopeControls();
         this._setupLFOControls();
         this._setupEffectsControls();
+        this._setupArpeggiatorControls();
     }
 
     _updateValueDisplay(element) {
@@ -78,6 +80,13 @@ class UIController {
             case 'voice-scaling':
                 value = (parseInt(value) / 100).toFixed(2);
                 unit = '';
+                break;
+            case 'arp-bpm':
+                unit = ' BPM';
+                break;
+            case 'arp-gate':
+                unit = '%';
+                value = `${parseInt(value)}`;
                 break;
             default:
                 unit = '';
@@ -394,6 +403,58 @@ class UIController {
             });
             this.effects.setReverbMix(parseInt(reverbMixSlider.value) / 100);
             this._updateValueDisplay(reverbMixSlider);
+        }
+    }
+
+    _setupArpeggiatorControls() {
+        const arp = this.arpeggiator;
+        if (!arp) return;
+
+        const toggleBtn = document.getElementById('arp-toggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                arp.setEnabled(!arp.enabled);
+                toggleBtn.classList.toggle('active', arp.enabled);
+            });
+        }
+
+        const patternSelect = document.getElementById('arp-pattern');
+        if (patternSelect) {
+            patternSelect.addEventListener('change', (e) => {
+                arp.setPattern(e.target.value);
+            });
+        }
+
+        const bpmSlider = document.getElementById('arp-bpm');
+        if (bpmSlider) {
+            bpmSlider.addEventListener('input', (e) => {
+                arp.setBpm(parseInt(e.target.value));
+                this._updateValueDisplay(e.target);
+            });
+            this._updateValueDisplay(bpmSlider);
+        }
+
+        const divisionSelect = document.getElementById('arp-division');
+        if (divisionSelect) {
+            divisionSelect.addEventListener('change', (e) => {
+                arp.setDivision(e.target.value);
+            });
+        }
+
+        const octavesSelect = document.getElementById('arp-octaves');
+        if (octavesSelect) {
+            octavesSelect.addEventListener('change', (e) => {
+                arp.setOctaveRange(parseInt(e.target.value));
+            });
+        }
+
+        const gateSlider = document.getElementById('arp-gate');
+        if (gateSlider) {
+            gateSlider.addEventListener('input', (e) => {
+                arp.setGate(parseInt(e.target.value));
+                this._updateValueDisplay(e.target);
+            });
+            this._updateValueDisplay(gateSlider);
         }
     }
 }
